@@ -1,4 +1,6 @@
-﻿namespace FemCourseProject;
+﻿using System.Data;
+
+namespace FemCourseProject;
 
 public class SparseMatrix
 {
@@ -30,6 +32,12 @@ public class SparseMatrix
         var buf = list.Select(nodeList => amount += nodeList.Count).ToList();
         buf.Insert(0, 0);
         ig = buf;
+    }
+
+    public void Clear()
+    {
+        gg = Enumerable.Repeat(0.0, gg.Count).ToList();
+        di = Enumerable.Repeat(0.0, di.Count).ToList();
     }
 
     public SparseMatrix Decomposition()

@@ -2,6 +2,9 @@
 
 public class MainClass
 {
+
+
+
     public static void Main(string[] args)
     {
         try
@@ -9,16 +12,13 @@ public class MainClass
             var grid = new Grid(".\\Input\\grid.txt");
             var matrix = new SparseMatrix(grid);
             var assembler = new Assembler(matrix, grid);
+
             var uStar = Parameters.GetUVec(grid);
             var f = Parameters.GetFVec(grid);
             assembler.Assemble(f);
-            assembler.PutConditionOne(new List<int> { 0, 1, 2, 3, 4, 5, 10, 15, 20, 9, 14, 19, 24, 21, 22, 23 });
-            //assembler.PutConditionOne(new List<int>{0,3,6});
-            //assembler.PutConditionOne(new List<int>{2,5,8});
-            //assembler.PutConditionOne(new List<int>{6,7,8});
-            var b = new Vec(assembler.GlobalVec.vector);
+            assembler.PutConditionOne(assembler.GetBorderNumbers());
             var x0 = new Vec(f.Count);
-            var q = SparseMatrix.MsgSolve(matrix, x0, b, 10e-16, 10000);
+            var q = SparseMatrix.MsgSolve(assembler.sMatrix, x0, assembler.GlobalVec, 10e-16, 10000);
             var counter = 0;
             Console.WriteLine("X      | Y      | U      | U*     | U* - U");
             for (var y = 0; y < grid.grid_y_size; y++)

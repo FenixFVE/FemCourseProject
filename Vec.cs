@@ -5,6 +5,12 @@ public class Vec : ICloneable
     public List<double> vector { get; set; }
     public int Count => vector.Count;
 
+
+    public void Clear()
+    {
+        vector = Enumerable.Repeat(0.0, Count).ToList();
+    }
+
     public double this[int index]
     {
         get => vector[index];

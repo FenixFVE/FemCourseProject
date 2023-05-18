@@ -8,6 +8,13 @@ public class Assembler
     public Matrix GMatrix { get; }
     public Matrix MMatrix { get; }
 
+
+    public void Clear()
+    {
+        sMatrix.Clear();
+        GlobalVec.Clear();
+    }
+
     public Assembler(SparseMatrix sMatrix, Grid grid)
     {
         this.sMatrix = sMatrix;
@@ -68,7 +75,6 @@ public class Assembler
 
     public void Assemble(Vec globalF)
     {
-        var globalB = new Vec(globalF.Count);
 
         foreach (var elem in grid.elements)
         {
@@ -80,8 +86,11 @@ public class Assembler
             var hx = grid.grid_x[firstX + 2] - grid.grid_x[firstX];
             var hy = grid.grid_y[firstY + 2] - grid.grid_y[firstY];
 
-            var lambda = Parameters.GetLambda(grid.grid_x[firstX + 1], grid.grid_y[firstY + 1]);
-            var gamma = Parameters.GetGamma(grid.grid_x[firstX + 1], grid.grid_y[firstY + 1]);
+            var _x = grid.grid_x[firstX + 1];
+            var _y = grid.grid_y[firstY + 1];
+
+            var lambda = Parameters.GetLambda(_x, _y);
+            var gamma = Parameters.GetGamma(_x, _y);
 
             var G = new Matrix(9, 9);
             var M = new Matrix(9, 9);
@@ -116,6 +125,106 @@ public class Assembler
         }
     }
 
+    public void AssembleWithTime(Vec globalF, double t0, double t1, double t2, Vec global_bj_2, Vec global_qj_1, Vec global_qj_2)
+    {
+        var m1 = (t0 - t2) / (t1 - t2);
+        var m2 = (t0 - t1) / (t1 - t2);
+        var d1 = t0 - t2;
+        var d2 = t0 * (t0 - t1 - t2) + t1 * t2;
+        d2 /= 2.0;
+
+        foreach (var elem in grid.elements)
+        {
+            var f = new Vec(9, false);
+            var bj_2 = new Vec(9, false);
+            var qj_1 = new Vec(9, false);
+            var qj_2 = new Vec(9, false);
+
+            foreach (var i in elem)
+            {
+                f.vector.Add(globalF[i]);
+                bj_2.vector.Add(global_bj_2[i]);
+                qj_1.vector.Add(global_qj_1[i]);
+                qj_2.vector.Add(global_qj_2[i]);
+            }
+
+            var (firstX, firstY) = grid.number_to_coordinates[elem[0]];
+            var hx = grid.grid_x[firstX + 2] - grid.grid_x[firstX];
+            var hy = grid.grid_y[firstY + 2] - grid.grid_y[firstY];
+
+            var _x = grid.grid_x[firstX + 1];
+            var _y = grid.grid_y[firstY + 1];
+
+            var lambda = Parameters.GetLambda(_x, _y, t0);
+            var gamma = Parameters.GetGamma(_x, _y, t0);
+            var sigma = Parameters.GetSigma(_x, _y, t0);
+            var chi = Parameters.GetChi(_x, _y, t0);
+
+            var G = new Matrix(9, 9);
+            var C = new Matrix(9, 9);
+
+            for (var i = 0; i < 9; i++)
+            {
+                for (var j = 0; j <= i; j++)
+                {
+                    var g = GetG(Mu(i), Mu(j), hx) * GetM(Nu(i), Nu(j), hy)
+                            + GetM(Mu(i), Mu(j), hx) * GetG(Nu(i), Nu(j), hy);
+                    g *= lambda;
+                    var c = GetM(Mu(i), Mu(j), hx) * GetM(Nu(i), Nu(j), hy);
+                    G[i, j] = g;
+                    C[i, j] = c;
+                    if (i != j)
+                    {
+                        G[j, i] = g;
+                        C[j, i] = c;
+                    }
+                }
+            }
+
+            var bj_1 = C * f;
+
+
+            var A = G * 0.5;
+            A += C * (gamma / 2.0 + sigma / d1 + chi / d2);
+
+            var b = (bj_1 + bj_2) * 0.5;
+            b -= (G * bj_2) * 0.5;
+            b += C * (
+                qj_1 * (m1 * chi / d2) 
+                + 
+                qj_2 * (-gamma / 2.0 + sigma / d1 - (m2 * chi / d2))
+                );
+
+            PutMatrix(A, elem);
+            PutVector(b, elem);
+        }
+    }
+
+    public List<int> GetBorderNumbers()
+    {
+        var border = new List<int>();
+
+        int counter = 0;
+
+        for (var y = 0; y < grid.grid_y_size; y++)
+        {
+            for (var x = 0; x < grid.grid_x_size; x++)
+            {
+                if (y == 0 || y == grid.grid_y_size - 1)
+                {
+                    border.Add(counter);
+                }
+                else if (x == 0 || x == grid.grid_x_size - 1)
+                {
+                    border.Add(counter);
+                }
+
+                counter++;
+            }
+        }
+
+        return border;
+    }
     public void PutConditionOne(List<int> GlobalNumbers)
     {
         for (var i = 0; i < GlobalNumbers.Count; i++)
